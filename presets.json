@@ -1,0 +1,54 @@
+{
+  "macbook_moscow": {
+    "name": "MacBook Москва",
+    "description": "Поиск MacBook в Москве",
+    "city": "moskva",
+    "query": "MacBook Pro",
+    "category": "noutbuki",
+    "pages": 10,
+    "min_price": 50000,
+    "max_price": 300000,
+    "private_only": false,
+    "profit_margin": 0.30,
+    "save_db": true
+  },
+  "iphone_spb": {
+    "name": "iPhone Санкт-Петербург",
+    "description": "Поиск iPhone в СПб",
+    "city": "sankt-peterburg",
+    "query": "iPhone 15",
+    "category": "telefony",
+    "pages": 8,
+    "min_price": 30000,
+    "max_price": 150000,
+    "private_only": true,
+    "profit_margin": 0.25,
+    "save_db": false
+  },
+  "velosipedy": {
+    "name": "Велосипеды Москва",
+    "description": "Поиск велосипедов в Москве",
+    "city": "moskva",
+    "query": "велосипед",
+    "category": "velosipedy",
+    "pages": 5,
+    "min_price": 5000,
+    "max_price": 50000,
+    "private_only": false,
+    "profit_margin": 0.35,
+    "save_db": false
+  },
+  "noutbuki_budget": {
+    "name": "Бюджетные ноутбуки",
+    "description": "Дешёвые ноутбуки в Москве",
+    "city": "moskva",
+    "query": "ноутбук",
+    "category": "noutbuki",
+    "pages": 10,
+    "min_price": 10000,
+    "max_price": 40000,
+    "private_only": false,
+    "profit_margin": 0.40,
+    "save_db": true
+  }
+}

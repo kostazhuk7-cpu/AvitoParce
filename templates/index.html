@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avito Parser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 30px 0;
+            border-bottom: 1px solid #2a2a2a;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #888;
+            font-size: 14px;
+        }
+
+        /* Search Form */
+        .search-box {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 30px;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .search-field {
+            flex: 1;
+        }
+
+        .search-field label {
+            display: block;
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .search-field input,
+        .search-field select {
+            width: 100%;
+            padding: 12px 16px;
+            background: #0f0f0f;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 15px;
+            transition: border-color 0.2s;
+        }
+
+        .search-field input:focus,
+        .search-field select:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .search-field input::placeholder {
+            color: #555;
+        }
+
+        .search-btn {
+            padding: 12px 32px;
+            background: #4a9eff;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .search-btn:hover {
+            background: #3a8eef;
+        }
+
+        .search-btn:disabled {
+            background: #333;
+            cursor: not-allowed;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .stat-value.green { color: #4ade80; }
+        .stat-value.blue { color: #4a9eff; }
+        .stat-value.orange { color: #fb923c; }
+        .stat-value.red { color: #f87171; }
+
+        .stat-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        /* Results Table */
+        .results-section {
+            margin-top: 24px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #fff;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .results-table th {
+            background: #222;
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #888;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .results-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #1f1f1f;
+            font-size: 14px;
+        }
+
+        .results-table tr:hover {
+            background: #222;
+        }
+
+        .results-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Price styling */
+        .price {
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .price.profitable {
+            color: #4ade80;
+        }
+
+        .price.normal {
+            color: #e0e0e0;
+        }
+
+        /* Title link */
+        .item-title {
+            color: #4a9eff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .item-title:hover {
+            text-decoration: underline;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge.profit {
+            background: rgba(74, 222, 128, 0.15);
+            color: #4ade80;
+        }
+
+        .badge.flag {
+            background: rgba(248, 113, 113, 0.15);
+            color: #f87171;
+        }
+
+        .badge.neutral {
+            background: rgba(136, 136, 136, 0.15);
+            color: #888;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #555;
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top-color: #4a9eff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .search-row {
+                flex-direction: column;
+            }
+
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .results-table {
+                font-size: 12px;
+            }
+
+            .results-table th,
+            .results-table td {
+                padding: 8px 10px;
+            }
+        }
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid #2a2a2a;
+            padding-bottom: 0;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 14px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .tab:hover {
+            color: #fff;
+        }
+
+        .tab.active {
+            color: #4a9eff;
+            border-bottom-color: #4a9eff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* HTML textarea */
+        .html-textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 16px;
+            background: #0f0f0f;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            resize: vertical;
+            line-height: 1.5;
+        }
+
+        .html-textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .inline-fields {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+            align-items: end;
+        }
+
+        .browser-instructions {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 32px;
+            line-height: 1.8;
+        }
+
+        .browser-instructions ol {
+            padding-left: 24px;
+        }
+
+        .browser-instructions li {
+            margin-bottom: 12px;
+            color: #ccc;
+        }
+
+        .browser-instructions code {
+            background: #0f0f0f;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #4a9eff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Avito Parser</h1>
+            <p>Поиск выгодных предложений на Авито</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('html', this)">Вставить HTML</button>
+            <button class="tab" onclick="switchTab('browser', this)">Открыть в браузере</button>
+            <button class="tab" onclick="switchTab('history', this)">История</button>
+        </div>
+
+        <!-- Tab 1: Paste HTML -->
+        <div class="tab-content active" id="tab-html">
+            <div class="search-box">
+                <form method="POST" action="/parse-html" id="htmlForm">
+                    <div class="inline-fields">
+                        <div class="search-field" style="flex: 1;">
+                            <label>Запрос</label>
+                            <input type="text" name="query" placeholder="Например: MacBook Pro"
+                                   value="{{ results.query if results and results.query != 'пользовательский HTML' else '' }}">
+                        </div>
+                        <div class="search-field" style="flex: 1;">
+                            <label>Город</label>
+                            <select name="city">
+                                <option value="moskva">Москва</option>
+                                <option value="moskva_i_mo">Москва и МО</option>
+                                <option value="sankt-peterburg">Петербург</option>
+                                <option value="novosibirsk">Новосибирск</option>
+                                <option value="ekaterinburg">Екатеринбург</option>
+                                <option value="kazan">Казань</option>
+                                <option value="krasnodar">Краснодар</option>
+                                <option value="rossiya">Вся Россия</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="search-field" style="margin-bottom: 12px;">
+                        <label>Вставьте код страницы Avito (Ctrl+A, Ctrl+C в браузере, затем Ctrl+V сюда)</label>
+                        <textarea name="html_content" class="html-textarea" placeholder="Откройте страницу с результатами поиска на Avito, нажмите Ctrl+A (выделить всё), Ctrl+C (копировать), затем Ctrl+V (вставить) сюда..."></textarea>
+                    </div>
+                    <button type="submit" class="search-btn" id="htmlBtn">
+                        Анализировать
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tab 2: Browser Search -->
+        <div class="tab-content" id="tab-browser">
+            <div class="search-box">
+                <form method="POST" action="/search-browser" id="browserForm">
+                    <div class="search-row">
+                        <div class="search-field" style="flex: 3;">
+                            <label>Что ищем</label>
+                            <input type="text" name="query" placeholder="Например: MacBook Pro M3" required
+                                   value="{{ results.query if results else '' }}">
+                        </div>
+                        <div class="search-field" style="flex: 1;">
+                            <label>Город</label>
+                            <select name="city">
+                                <option value="moskva">Москва</option>
+                                <option value="moskva_i_mo">Москва и МО</option>
+                                <option value="sankt-peterburg">Санкт-Петербург</option>
+                                <option value="novosibirsk">Новосибирск</option>
+                                <option value="ekaterinburg">Екатеринбург</option>
+                                <option value="kazan">Казань</option>
+                                <option value="krasnodar">Краснодар</option>
+                                <option value="rossiya">Вся Россия</option>
+                            </select>
+                        </div>
+                        <div class="search-field" style="flex: 1;">
+                            <label>Категория</label>
+                            <select name="category">
+                                <option value="">Все категории</option>
+                                <option value="noutbuki">Ноутбуки</option>
+                                <option value="telefony">Телефоны</option>
+                                <option value="kompyutery">Компьютеры</option>
+                                <option value="planshety">Планшеты</option>
+                                <option value="tovary_dlya_kompyutera">Комплектующие</option>
+                                <option value="elektronika">Электроника</option>
+                            </select>
+                        </div>
+                        <div class="search-field" style="flex: 0.5;">
+                            <label>Страниц</label>
+                            <select name="pages">
+                                <option value="1">1</option>
+                                <option value="3" selected>3</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="search-btn" id="browserBtn" style="background: #22c55e;">
+                            🔍 Браузер
+                        </button>
+                    </div>
+                    <div style="margin-top: 12px; display: flex; gap: 20px; align-items: center;">
+                        <label style="font-size: 13px; color: #888; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" name="headless" value="true">
+                            Фоновый режим (без окна)
+                        </label>
+                        <span style="font-size: 12px; color: #555;">
+                            ⚡ Браузер запустит Chromium, сам откроет Avito и соберёт данные. Работает где API блокирует (занимает 30-60 сек)
+                        </span>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tab 3: History -->
+        <div class="tab-content" id="tab-history">
+            <div class="search-box">
+                <form method="POST" action="/history" id="historyForm">
+                    <div class="search-row">
+                        <div class="search-field" style="flex: 2;">
+                            <label>Запрос</label>
+                            <input type="text" name="query" placeholder="Например: MacBook Pro" value="{{ history_query or '' }}">
+                        </div>
+                        <div class="search-field" style="flex: 1;">
+                            <label>Город</label>
+                            <select name="city">
+                                <option value="">Все города</option>
+                                <option value="moskva">Москва</option>
+                                <option value="moskva_i_mo">Москва и МО</option>
+                                <option value="sankt-peterburg">Санкт-Петербург</option>
+                                <option value="novosibirsk">Новосибирск</option>
+                                <option value="ekaterinburg">Екатеринбург</option>
+                                <option value="kazan">Казань</option>
+                                <option value="krasnodar">Краснодар</option>
+                                <option value="rossiya">Вся Россия</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="search-btn">Показать историю</button>
+                    </div>
+                </form>
+            </div>
+
+            {% if history_sessions %}
+            <div class="results-section">
+                <div class="section-title">Сохранённые поиски</div>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Запрос</th>
+                            <th>Город</th>
+                            <th>Объявлений</th>
+                            <th>Мин. цена</th>
+                            <th>Макс. цена</th>
+                            <th>Первое появление</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for session in history_sessions %}
+                        <tr>
+                            <td>{{ session.search_query }}</td>
+                            <td>{{ session.city }}</td>
+                            <td>{{ session.items }}</td>
+                            <td>{{ "{:,}".format(session.min_price).replace(",", " ") }}</td>
+                            <td>{{ "{:,}".format(session.max_price).replace(",", " ") }}</td>
+                            <td>{{ session.first_seen[:10] if session.first_seen else '' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            {% if session_items %}
+            <div class="results-section">
+                <div class="section-title">Объявления из поиска "{{ history_query }}" в {{ history_city }}</div>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Товар</th>
+                            <th>Цена</th>
+                            <th>Состояние</th>
+                            <th>Продавец</th>
+                            <th>Дата</th>
+                            <th>Ссылка</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in session_items %}
+                        <tr>
+                            <td>{{ item.item_id }}</td>
+                            <td>{{ item.title[:50] }}</td>
+                            <td>{{ "{:,}".format(item.price_rub).replace(",", " ") }} ₽</td>
+                            <td>{{ item.condition or '' }}</td>
+                            <td>{{ item.seller_name[:20] }}</td>
+                            <td>{{ item.scraped_at[:10] if item.scraped_at else '' }}</td>
+                            <td><a href="{{ item.url }}" target="_blank" class="item-title">Открыть</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Loading -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p id="loadingText">Поиск объявлений...</p>
+        </div>
+
+        <!-- Results -->
+        {% if results %}
+        <div id="results">
+            <!-- Stats -->
+            <div class="stats-bar">
+                <div class="stat-card">
+                    <div class="stat-value blue">{{ results.total_items }}</div>
+                    <div class="stat-label">Объявлений</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ "{:,}".format(results.median_price).replace(",", " ") }}</div>
+                    <div class="stat-label">Медиана (руб)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value green">{{ results.profitable_threshold }}</div>
+                    <div class="stat-label">Лимит выгоды</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value orange">{{ results.profitable_items|length }}</div>
+                    <div class="stat-label">Выгодных</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value red">{{ results.red_flags_summary|length }}</div>
+                    <div class="stat-label">Красных флагов</div>
+                </div>
+            </div>
+
+            <!-- Profitable Items Table -->
+            {% if results.profitable_items %}
+            <div class="results-section">
+                <div class="section-title">Выгодные предложения (ниже {{ ((1 - results.profitable_threshold / results.median_price * 100)|round|int) if results.median_price > 0 else 0 }}% от медианы)</div>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Товар</th>
+                            <th>Цена</th>
+                            <th>Состояние</th>
+                            <th>Рынок</th>
+                            <th>Скидка</th>
+                            <th>Продавец</th>
+                            <th>Флаги</th>
+                            <th>Ссылка</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in results.profitable_items[:20] %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ item.title[:50] }}{% if item.title|length > 50 %}...{% endif %}</td>
+                            <td>
+                                <span class="price profitable">{{ "{:,}".format(item.price_rub).replace(",", " ") }} ₽</span>
+                            </td>
+                            <td>{{ item.condition or '' }}</td>
+                            <td>{{ "{:,}".format(results.median_price).replace(",", " ") }} ₽</td>
+                            <td>
+                                <span class="badge profit">-{{ ((item.profit_margin or 0) * 100)|round|int }}%</span>
+                            </td>
+                            <td>{{ item.seller_name[:20] }}</td>
+                            <td>
+                                {% for flag in item.red_flags[:2] %}
+                                <span class="badge flag">{{ red_flag_names.get(flag.value, flag.value) }}</span>
+                                {% endfor %}
+                            </td>
+                            <td>
+                                <a href="{{ item.url }}" target="_blank" class="item-title">Открыть</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- All Items Table -->
+            <div class="results-section">
+                <div class="section-title">Все объявления ({{ results.total_items }})</div>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Товар</th>
+                            <th>Цена</th>
+                            <th>Состояние</th>
+                            <th>Продавец</th>
+                            <th>Город</th>
+                            <th>Релевантность</th>
+                            <th>Статус</th>
+                            <th>Ссылка</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set sorted_items = results.all_items|sort(attribute='is_relevant', reverse=true) %}
+                        {% for item in sorted_items[:50] %}
+                        <tr style="{{ '' if item.is_relevant else 'opacity: 0.45;' }}">
+                            <td>{{ loop.index }}</td>
+                            <td>{{ item.title[:50] }}{% if item.title|length > 50 %}...{% endif %}</td>
+                            <td>
+                                <span class="price {{ 'profitable' if item.is_profitable else 'normal' }}">
+                                    {{ "{:,}".format(item.price_rub).replace(",", " ") }} ₽
+                                </span>
+                            </td>
+                            <td>{{ item.condition or '' }}</td>
+                            <td>{{ item.seller_name[:20] }}</td>
+                            <td>{{ item.city }}</td>
+                            <td>
+                                {% if item.is_relevant %}
+                                <span class="badge profit">Релевантно</span>
+                                {% else %}
+                                <span class="badge neutral">Другое</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.is_profitable %}
+                                <span class="badge profit">Выгодно</span>
+                                {% elif item.red_flags %}
+                                <span class="badge flag">Есть флаги</span>
+                                {% else %}
+                                <span class="badge neutral">Норма</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ item.url }}" target="_blank" class="item-title">Открыть</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% if results.all_items|length > 50 %}
+                <p style="text-align: center; color: #555; padding: 16px;">
+                    Показано 50 из {{ results.total_items }} объявлений
+                </p>
+                {% endif %}
+            </div>
+
+            <form method="POST" action="/save-results" style="margin-top: 20px; text-align: center;">
+                <button type="submit" class="search-btn" style="background: #8b5cf6;">
+                    💾 Сохранить в историю
+                </button>
+            </form>
+            {% if saved_count %}
+            <div style="text-align: center; color: #4ade80; margin-top: 12px;">
+                Сохранено {{ saved_count }} объявлений
+            </div>
+            {% endif %}
+        </div>
+        {% elif error_message %}
+        <!-- Error State -->
+        <div class="empty-state" id="emptyState">
+            <div class="icon">⚠️</div>
+            <h3>{{ error_message }}</h3>
+            <p style="margin-top: 8px; color: #888;">Попробуйте другой запрос или подождите несколько минут</p>
+        </div>
+        {% else %}
+        <!-- Empty State -->
+        <div class="empty-state" id="emptyState">
+            <div class="icon">🔍</div>
+            <h3>Введите запрос для поиска</h3>
+            <p style="margin-top: 8px;">Например: MacBook Pro, iPhone 15, PlayStation 5</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Tab switching
+        function switchTab(name, btn) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + name).classList.add('active');
+        }
+
+        // Show loading on HTML form submit
+        document.getElementById('htmlForm').addEventListener('submit', function() {
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('loadingText').textContent = 'Парсинг HTML-кода...';
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('htmlBtn').disabled = true;
+            document.getElementById('htmlBtn').textContent = 'Анализ...';
+        });
+
+        // Show loading on browser form submit
+        document.getElementById('browserForm').addEventListener('submit', function() {
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('loadingText').textContent = 'Запуск браузера и сбор данных... Это может занять 30-60 секунд';
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('browserBtn').disabled = true;
+            document.getElementById('browserBtn').textContent = 'Браузер работает...';
+        });
+
+        // History form submit
+        document.getElementById('historyForm').addEventListener('submit', function() {
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('loadingText').textContent = 'Загрузка истории...';
+        });
+    </script>
+</body>
+</html>

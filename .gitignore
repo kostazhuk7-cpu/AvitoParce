@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.browser_profile/
+.omo/
+data/
+.env
+captcha_debug.png
+test_response.html
+test_web_response_raw.html
+test_results.html
+*.bat
