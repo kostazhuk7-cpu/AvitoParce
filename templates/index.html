@@ -404,6 +404,7 @@
             <button class="tab active" onclick="switchTab('html', this)">Вставить HTML</button>
             <button class="tab" onclick="switchTab('browser', this)">Открыть в браузере</button>
             <button class="tab" onclick="switchTab('history', this)">История</button>
+            <button class="tab" onclick="switchTab('flip', this)">Аналитика для продажи</button>
         </div>
 
         <!-- Tab 1: Paste HTML -->
@@ -588,6 +589,169 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Tab 4: Flip Analytics -->
+        <div class="tab-content" id="tab-flip">
+            <div class="search-box">
+                <form method="POST" action="/flip-analytics" id="flipForm">
+                    <div class="search-row">
+                        <div class="search-field" style="flex: 3;">
+                            <label>Что ищем для перепродажи</label>
+                            <input type="text" name="query" placeholder="Например: iPhone 15, PlayStation 5" required
+                                   value="{{ flip_result.query if flip_result else '' }}">
+                        </div>
+                        <div class="search-field" style="flex: 1;">
+                            <label>Город</label>
+                            <select name="city">
+                                <option value="moskva">Москва</option>
+                                <option value="moskva_i_mo">Москва и МО</option>
+                                <option value="sankt-peterburg">Санкт-Петербург</option>
+                                <option value="novosibirsk">Новосибирск</option>
+                                <option value="ekaterinburg">Екатеринбург</option>
+                                <option value="kazan">Казань</option>
+                                <option value="krasnodar">Краснодар</option>
+                                <option value="rostov-na-donu">Ростов-на-Дону</option>
+                                <option value="rossiya">Вся Россия</option>
+                            </select>
+                        </div>
+                        <div class="search-field" style="flex: 1;">
+                            <label>Категория</label>
+                            <select name="category">
+                                <option value="">Все категории</option>
+                                <option value="noutbuki">Ноутбуки</option>
+                                <option value="telefony">Телефоны</option>
+                                <option value="kompyutery">Компьютеры</option>
+                                <option value="planshety">Планшеты</option>
+                                <option value="tovary_dlya_kompyutera">Комплектующие</option>
+                                <option value="elektronika">Электроника</option>
+                            </select>
+                        </div>
+                        <div class="search-field" style="flex: 0.5;">
+                            <label>Страниц</label>
+                            <select name="pages">
+                                <option value="1">1</option>
+                                <option value="3" selected>3</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="search-btn" id="flipBtn" style="background: #f59e0b;">
+                            Анализировать
+                        </button>
+                    </div>
+                    <div style="margin-top: 12px; display: flex; gap: 20px; align-items: center;">
+                        <label style="font-size: 13px; color: #888; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" name="headless" value="true">
+                            Фоновый режим (без окна)
+                        </label>
+                        <span style="font-size: 12px; color: #555;">
+                            Ищем товары в хорошем состоянии по цене ниже рынка, рассчитываем прибыль с учётом 10% комиссии
+                        </span>
+                    </div>
+                </form>
+            </div>
+
+            {% if flip_result and flip_result.candidates %}
+            <div id="results">
+                <div class="stats-bar">
+                    <div class="stat-card">
+                        <div class="stat-value blue">{{ flip_result.total_items }}</div>
+                        <div class="stat-label">Всего объявлений</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">{{ "{:,}".format(flip_result.median_price).replace(",", " ") }}</div>
+                        <div class="stat-label">Медиана рынка</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value green">{{ flip_result.candidates|length }}</div>
+                        <div class="stat-label">Кандидатов</div>
+                    </div>
+                    <div class="stat-card">
+                        {% set avg_roi = (flip_result.candidates|sum(attribute='roi_percent') / flip_result.candidates|length)|round(1) if flip_result.candidates else 0 %}
+                        <div class="stat-value" style="color: #facc15;">{{ avg_roi }}%</div>
+                        <div class="stat-label">Средний ROI</div>
+                    </div>
+                    <div class="stat-card">
+                        {% set avg_profit = (flip_result.candidates|sum(attribute='net_profit') / flip_result.candidates|length)|int if flip_result.candidates else 0 %}
+                        <div class="stat-value orange">{{ "{:,}".format(avg_profit).replace(",", " ") }}</div>
+                        <div class="stat-label">Средняя прибыль</div>
+                    </div>
+                </div>
+
+                <div class="results-section">
+                    <div class="section-title">
+                        Кандидаты на перепродажу
+                        <span style="font-size: 12px; color: #888; font-weight: normal;">
+                            — выкуп по текущей цене, продажа за 90% от медианы ({{ "{:,}".format(flip_result.median_price).replace(",", " ") }} руб)
+                        </span>
+                    </div>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Товар</th>
+                                <th>Состояние</th>
+                                <th>Цена покупки</th>
+                                <th>Цена продажи</th>
+                                <th>Комиссия</th>
+                                <th>Чистая прибыль</th>
+                                <th>ROI</th>
+                                <th>Скидка</th>
+                                <th>Ссылка</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in flip_result.candidates %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ c.title[:50] }}{% if c.title|length > 50 %}...{% endif %}</td>
+                                <td>{{ c.condition }}</td>
+                                <td><span class="price" style="color: #f87171;">{{ "{:,}".format(c.buy_price).replace(",", " ") }} ₽</span></td>
+                                <td><span class="price" style="color: #4ade80;">{{ "{:,}".format(c.estimated_resale).replace(",", " ") }} ₽</span></td>
+                                <td>{{ "{:,}".format(c.commission).replace(",", " ") }} ₽</td>
+                                <td>
+                                    <span style="color: {{ '#4ade80' if c.net_profit > 0 else '#f87171' }}; font-weight: 700;">
+                                        {% if c.net_profit > 0 %}+{% endif %}{{ "{:,}".format(c.net_profit).replace(",", " ") }} ₽
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge" style="background: {{ 'rgba(74, 222, 128, 0.15)' if c.roi_percent > 30 else 'rgba(250, 204, 21, 0.15)' if c.roi_percent > 10 else 'rgba(248, 113, 113, 0.15)' }}; color: {{ '#4ade80' if c.roi_percent > 30 else '#facc15' if c.roi_percent > 10 else '#f87171' }}">
+                                        {{ c.roi_percent }}%
+                                    </span>
+                                </td>
+                                <td><span class="badge" style="background: rgba(250, 204, 21, 0.15); color: #facc15;">{{ c.discount_percent }}%</span></td>
+                                <td>
+                                    <a href="{{ c.url }}" target="_blank" class="item-title">Открыть</a>
+                                    {% if c.flag_count > 0 %}
+                                    <span style="margin-left: 4px; font-size: 11px; color: #f87171;" title="{% for f in c.red_flags %}{{ f }}{% if not loop.last %}, {% endif %}{% endfor %}">⚠</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% elif flip_result and flip_result.total_items > 0 and not flip_result.candidates %}
+            <div class="empty-state">
+                <div class="icon">📊</div>
+                <h3>Нет подходящих кандидатов для перепродажи</h3>
+                <p style="margin-top: 8px; color: #888;">
+                    Найдено {{ flip_result.total_items }} объявлений, медианная цена {{ "{:,}".format(flip_result.median_price).replace(",", " ") }} руб, но ни один товар в хорошем состоянии не продаётся значительно дешевле рынка.
+                </p>
+            </div>
+            {% elif error_message %}
+            <div class="empty-state">
+                <div class="icon">⚠️</div>
+                <h3>{{ error_message }}</h3>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="icon">🔄</div>
+                <h3>Введите запрос для поиска выгодных предложений</h3>
+                <p style="margin-top: 8px;">Например: iPhone 15, MacBook Pro, PlayStation 5</p>
             </div>
             {% endif %}
         </div>
@@ -793,6 +957,22 @@
             document.getElementById('loading').classList.add('active');
             document.getElementById('loadingText').textContent = 'Загрузка истории...';
         });
+
+        // Flip form submit
+        document.getElementById('flipForm').addEventListener('submit', function() {
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('loadingText').textContent = 'Запуск браузера, сбор данных и расчёт прибыли... Это может занять 30-60 секунд';
+            document.getElementById('flipBtn').disabled = true;
+            document.getElementById('flipBtn').textContent = 'Анализ...';
+        });
+
+        // Auto-switch to flip tab if flip results are shown
+        {% if flip_result %}
+        (function() {
+            var flipTab = document.querySelector('.tabs .tab:last-child');
+            if (flipTab) switchTab('flip', flipTab);
+        })();
+        {% endif %}
     </script>
 </body>
 </html>

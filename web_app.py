@@ -93,6 +93,7 @@ def _base_context(request: Request, **kwargs) -> dict:
         "history_query": None,
         "history_city": None,
         "search_mode": search_mode,
+        "flip_result": None,
     }
     ctx.update(kwargs)
     return ctx
@@ -256,6 +257,46 @@ async def history(
         history_query=query,
         history_city=city,
     ))
+
+
+@app.post("/flip-analytics", response_class=HTMLResponse)
+async def flip_analytics_search(
+    request: Request,
+    query: str = Form(...),
+    city: str = Form("moskva"),
+    category: str = Form(""),
+    pages: int = Form(3),
+    headless: bool = Form(False),
+):
+    """Run browser search + flip analysis, return results."""
+    global is_searching, search_mode
+    is_searching = True
+    search_mode = "flip"
+    error_message = None
+    flip_result = None
+
+    try:
+        all_items = await asyncio.to_thread(
+            _browser_search_thread,
+            query=query, city=CITY_SLUG_MAP.get(city, city),
+            category=category, pages=pages,
+            headless=headless, min_price=0, max_price=0,
+        )
+        if not all_items:
+            error_message = "Браузер не нашёл объявлений. Возможно, Avito показал капчу."
+        else:
+            flip_result = analyzer.analyze_flips(all_items, query=query, city=city)
+            logger.info(f"Flip analysis: {len(flip_result.candidates)} candidates from {len(all_items)} items")
+    except Exception as e:
+        error_message = f"Ошибка: {type(e).__name__}: {e}"
+        logger.error(f"Flip analysis error: {e}")
+    finally:
+        is_searching = False
+
+    return templates.TemplateResponse(
+        "index.html",
+        _base_context(request, error_message=error_message, flip_result=flip_result),
+    )
 
 
 @app.post("/save-results", response_class=HTMLResponse)

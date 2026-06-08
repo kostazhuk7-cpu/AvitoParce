@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
 
 from loguru import logger
+from pydantic import BaseModel, ConfigDict
 
 from avito_parser.models import (
     AnalyticsResult,
@@ -88,6 +89,39 @@ def _fuzzy_match(query: str, title: str, min_overlap_ratio: float = 0.5) -> bool
 
     ratio = matched / len(query_tokens)
     return ratio >= min_overlap_ratio
+
+
+class FlipCandidate(BaseModel):
+    """Item with flip potential analysis: buy low, resell high."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str
+    url: str
+    condition: str
+    buy_price: int
+    estimated_resale: int
+    commission: int
+    net_profit: int
+    roi_percent: float
+    discount_percent: float
+    flag_count: int
+    red_flags: List[str]
+    item_id: int
+
+
+class FlipsResult(BaseModel):
+    """Result of flip analysis on a set of items."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str
+    city: str
+    total_items: int
+    median_price: int
+    mean_price: int
+    candidates: List[FlipCandidate]
+    scanned_at: datetime
 
 
 class AvitoAnalytics:
@@ -246,6 +280,105 @@ class AvitoAnalytics:
             profitable_items=flagged_items,
             all_items=items_marked,
             red_flags_summary=dict(red_flags_counter),
+            scanned_at=datetime.now(timezone.utc),
+        )
+
+    GOOD_FLIP_CONDITIONS = {"Новое", "Отличное", "Б/у"}
+
+    def analyze_flips(
+        self,
+        items: List[AvitoItem],
+        query: str,
+        city: str,
+        commission_rate: float = 0.10,
+        resale_factor: float = 0.90,
+    ) -> FlipsResult:
+        """
+        Analyze items for flip potential (buy low, resell high).
+
+        Args:
+            items: Parsed AvitoItem list
+            query: Search query
+            city: City name
+            commission_rate: Platform commission (0.10 = 10%)
+            resale_factor: Conservative resale % of median (0.90 = 90%)
+
+        Returns:
+            FlipsResult with candidates sorted by net profit
+        """
+        if not items:
+            return FlipsResult(
+                query=query, city=city, total_items=0,
+                median_price=0, mean_price=0, candidates=[],
+                scanned_at=datetime.now(timezone.utc),
+            )
+
+        # Mark relevance using fuzzy match
+        marked: List[AvitoItem] = []
+        for item in items:
+            is_rel = _fuzzy_match(query, item.title, self._relevance_threshold)
+            marked.append(item.model_copy(update={"is_relevant": is_rel}))
+
+        relevant = [i for i in marked if i.is_relevant]
+        prices = [i.price_rub for i in relevant if i.price_rub > 0]
+
+        if not prices:
+            return FlipsResult(
+                query=query, city=city, total_items=len(items),
+                median_price=0, mean_price=0, candidates=[],
+                scanned_at=datetime.now(timezone.utc),
+            )
+
+        median_price = int(statistics.median(prices))
+        mean_price = int(statistics.mean(prices))
+        estimated_resale = int(median_price * resale_factor)
+
+        # Build candidates: good condition + below median + few flags
+        candidates: List[FlipCandidate] = []
+        for item in relevant:
+            cond = (item.condition or "").strip()
+            is_good_cond = any(gc.lower() in cond.lower() for gc in self.GOOD_FLIP_CONDITIONS) if cond else False
+
+            if not is_good_cond:
+                continue
+            if item.price_rub <= 0 or item.price_rub >= median_price:
+                continue
+
+            red_flags = self._detect_red_flags(item, median_price)
+            if len(red_flags) > 1:
+                continue
+
+            commission = int(estimated_resale * commission_rate)
+            net_profit = estimated_resale - item.price_rub - commission
+            discount_percent = ((median_price - item.price_rub) / median_price) * 100
+            roi_percent = (net_profit / item.price_rub) * 100 if item.price_rub > 0 else 0
+
+            candidates.append(FlipCandidate(
+                title=item.title[:60],
+                url=item.url,
+                condition=cond or "не указано",
+                buy_price=item.price_rub,
+                estimated_resale=estimated_resale,
+                commission=commission,
+                net_profit=net_profit,
+                roi_percent=round(roi_percent, 1),
+                discount_percent=round(discount_percent, 1),
+                flag_count=len(red_flags),
+                red_flags=[f.value for f in red_flags],
+                item_id=item.item_id,
+            ))
+
+        candidates.sort(key=lambda c: c.net_profit, reverse=True)
+
+        logger.info(
+            f"Flip analysis: {len(candidates)} candidates from {len(relevant)} relevant items, "
+            f"median={median_price}, resale≈{estimated_resale}"
+        )
+
+        return FlipsResult(
+            query=query, city=city, total_items=len(items),
+            median_price=median_price, mean_price=mean_price,
+            candidates=candidates,
             scanned_at=datetime.now(timezone.utc),
         )
 

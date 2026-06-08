@@ -15,3 +15,9 @@ run_preset.bat
 run_save_db.bat
 run_search.bat
 run_web.bat
+
+# Temp test files
+test_*.py
+debug_*.py
+analyze_*.py
+avito_gui.py
