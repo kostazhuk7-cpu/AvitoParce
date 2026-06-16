@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard — Avito Parser</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
             margin: 0;
@@ -149,13 +150,14 @@
         .flip-card {
             perspective: 800px;
             height: 220px;
+            cursor: pointer;
         }
 
         .flip-card__inner {
             position: relative;
             width: 100%;
             height: 100%;
-            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             transform-style: preserve-3d;
         }
 
@@ -174,6 +176,12 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            transition: border-color 0.3s;
+        }
+
+        .flip-card:hover .flip-card__front,
+        .flip-card:hover .flip-card__back {
+            border-color: #3a3a3a;
         }
 
         .flip-card__front {
@@ -331,6 +339,8 @@
             border-radius: 12px;
             padding: 20px;
             height: 220px;
+            display: flex;
+            flex-direction: column;
         }
 
         .skeleton-line {
@@ -430,11 +440,117 @@
             background: #3a8eef;
         }
 
+        /* Query Input */
+        .filter-field input[type="text"] {
+            padding: 10px 14px;
+            background: #0f0f0f;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            min-width: 200px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .filter-field input[type="text"]:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .filter-field input[type="text"]::placeholder {
+            color: #555;
+        }
+
+        /* Charts Section */
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .chart-container {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            min-height: 280px;
+            transition: border-color 0.3s;
+        }
+
+        .chart-container:hover {
+            border-color: #3a3a3a;
+        }
+
+        .chart-container__title {
+            font-size: 13px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+
+        .chart-container__canvas-wrap {
+            position: relative;
+            width: 100%;
+            height: 220px;
+        }
+
+        .chart-container__canvas-wrap canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .chart-skeleton {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding-top: 36px;
+        }
+
+        .chart-skeleton__bar {
+            height: 14px;
+            background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+
+        .chart-skeleton__bar:nth-child(1) { width: 90%; }
+        .chart-skeleton__bar:nth-child(2) { width: 70%; }
+        .chart-skeleton__bar:nth-child(3) { width: 80%; }
+        .chart-skeleton__bar:nth-child(4) { width: 55%; }
+        .chart-skeleton__bar:nth-child(5) { width: 65%; }
+        .chart-skeleton__bar:nth-child(6) { width: 45%; }
+
+        .chart-empty {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #555;
+            font-size: 13px;
+            padding-top: 36px;
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
             .card-grid,
             .loading-skeleton {
                 grid-template-columns: repeat(2, 1fr);
+            }
+
+            .charts-section {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .charts-section .chart-container:last-child {
+                grid-column: 1 / -1;
             }
         }
 
@@ -444,12 +560,25 @@
                 grid-template-columns: 1fr;
             }
 
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-section .chart-container:last-child {
+                grid-column: auto;
+            }
+
             .filter-bar {
                 flex-direction: column;
                 align-items: stretch;
             }
 
             .filter-field select {
+                min-width: unset;
+                width: 100%;
+            }
+
+            .filter-field input[type="text"] {
                 min-width: unset;
                 width: 100%;
             }
@@ -485,6 +614,11 @@
 
         <!-- Filters -->
         <div class="filter-bar">
+            <div class="filter-field">
+                <label>Поиск</label>
+                <input type="text" id="queryInput" value="iPhone" placeholder="Например: iPhone">
+            </div>
+
             <div class="filter-field">
                 <label>Город</label>
                 <select id="cityFilter">
@@ -526,6 +660,52 @@
             </div>
 
             <div class="filter-stats" id="filterStats"></div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-section" id="chartsSection">
+            <div class="chart-container" id="trendChartBox">
+                <div class="chart-container__title">Динамика цен (7 дней)</div>
+                <div class="chart-container__canvas-wrap">
+                    <canvas id="trendChart"></canvas>
+                    <div class="chart-skeleton" id="trendSkeleton">
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-container" id="regionChartBox">
+                <div class="chart-container__title">Сравнение по регионам</div>
+                <div class="chart-container__canvas-wrap">
+                    <canvas id="regionChart"></canvas>
+                    <div class="chart-skeleton" id="regionSkeleton">
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-container" id="profitChartBox">
+                <div class="chart-container__title">Распределение ROI (%)</div>
+                <div class="chart-container__canvas-wrap">
+                    <canvas id="profitChart"></canvas>
+                    <div class="chart-skeleton" id="profitSkeleton">
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                        <div class="chart-skeleton__bar"></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Content Area -->
@@ -587,7 +767,12 @@
 
         let currentCity = "";
         let currentMode = "all";
+        let currentQuery = "iPhone";
         let abortController = null;
+        let trendChartInstance = null;
+        let regionChartInstance = null;
+        let profitChartInstance = null;
+        let queryDebounceTimer = null;
 
         function formatPrice(n) {
             if (n == null) return "—";
@@ -650,7 +835,7 @@
             if (!candidates || !candidates.length) {
                 return '<div class="empty-state">' +
                     '<div class="empty-state__icon">\uD83D\uDD0D</div>' +
-                    '<div class="empty-state__title">Нет candidates matching filters</div>' +
+                    '<div class="empty-state__title">Нет подходящих результатов</div>' +
                     '<div class="empty-state__text">Попробуйте другой город или режим фильтрации</div>' +
                 "</div>";
             }
@@ -712,6 +897,7 @@
                 var candidates = data.candidates || [];
                 updateStats(candidates.length);
                 document.getElementById("content").innerHTML = renderGrid(candidates);
+                updateProfitHistogram(candidates);
             })
             .catch(function(err) {
                 if (err.name === "AbortError") return;
@@ -720,10 +906,327 @@
             });
         }
 
+        // Chart.js dark theme defaults
+        Chart.defaults.color = "#aaa";
+        Chart.defaults.borderColor = "#2a2a2a";
+        Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+        function showChartSkeleton(id) {
+            var el = document.getElementById(id);
+            if (el) el.style.display = "flex";
+        }
+
+        function hideChartSkeleton(id) {
+            var el = document.getElementById(id);
+            if (el) el.style.display = "none";
+        }
+
+        function showChartEmpty(canvasId, skeletonId) {
+            hideChartSkeleton(skeletonId);
+            var wrap = document.getElementById(canvasId).parentNode;
+            var existing = wrap.querySelector(".chart-empty");
+            if (!existing) {
+                var div = document.createElement("div");
+                div.className = "chart-empty";
+                div.textContent = "Нет данных для графиков";
+                wrap.appendChild(div);
+            }
+        }
+
+        function clearChartEmpty(canvasId) {
+            var wrap = document.getElementById(canvasId).parentNode;
+            var el = wrap.querySelector(".chart-empty");
+            if (el) el.remove();
+        }
+
+        function getChartCity() {
+            return currentCity || "moskva";
+        }
+
+        function loadTrends() {
+            showChartSkeleton("trendSkeleton");
+            clearChartEmpty("trendChart");
+
+            var params = new URLSearchParams();
+            params.set("query", currentQuery);
+            params.set("city", getChartCity());
+            params.set("days", "7");
+
+            fetch("/api/trends?" + params.toString())
+                .then(function(r) {
+                    if (!r.ok) throw new Error("HTTP " + r.status);
+                    return r.json();
+                })
+                .then(function(data) {
+                    hideChartSkeleton("trendSkeleton");
+                    var labels = data.labels || [];
+                    var values = data.prices || [];
+                    if (!labels.length || !values.length) {
+                        if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
+                        showChartEmpty("trendChart", "trendSkeleton");
+                        return;
+                    }
+
+                    if (trendChartInstance) trendChartInstance.destroy();
+                    trendChartInstance = new Chart(document.getElementById("trendChart"), {
+                        type: "line",
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: "Средняя цена",
+                                data: values,
+                                borderColor: "#4a9eff",
+                                backgroundColor: "rgba(74, 158, 255, 0.1)",
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 4,
+                                pointBackgroundColor: "#4a9eff",
+                                pointBorderColor: "#1a1a1a",
+                                pointBorderWidth: 2,
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: "#1a1a1a",
+                                    borderColor: "#333",
+                                    borderWidth: 1,
+                                    titleColor: "#fff",
+                                    bodyColor: "#ccc",
+                                    callbacks: {
+                                        label: function(ctx) { return formatPrice(ctx.parsed.y); }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    grid: { color: "#2a2a2a" },
+                                    ticks: { color: "#888", font: { size: 11 } }
+                                },
+                                y: {
+                                    grid: { color: "#2a2a2a" },
+                                    ticks: {
+                                        color: "#888",
+                                        font: { size: 11 },
+                                        callback: function(v) { return (v / 1000).toFixed(0) + "k"; }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(function() {
+                    hideChartSkeleton("trendSkeleton");
+                    if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
+                    showChartEmpty("trendChart", "trendSkeleton");
+                });
+        }
+
+        function loadMultiRegion() {
+            showChartSkeleton("regionSkeleton");
+            clearChartEmpty("regionChart");
+
+            var cities = ["moskva", "tula", "tver"];
+            if (currentCity && cities.indexOf(currentCity) === -1) {
+                cities = [currentCity, "moskva", "tula"];
+            }
+
+            var params = new URLSearchParams();
+            params.set("cities", cities.join(","));
+            params.set("query", currentQuery);
+
+            fetch("/api/flips/multi?" + params.toString())
+                .then(function(r) {
+                    if (!r.ok) throw new Error("HTTP " + r.status);
+                    return r.json();
+                })
+                .then(function(data) {
+                    hideChartSkeleton("regionSkeleton");
+                    var regions = Array.isArray(data) ? data : (data.regions || data.cities || data.results || []);
+                    if (!regions.length) {
+                        if (regionChartInstance) { regionChartInstance.destroy(); regionChartInstance = null; }
+                        showChartEmpty("regionChart", "regionSkeleton");
+                        return;
+                    }
+
+                    var CITY_NAMES = {
+                        moskva: "Москва", "sankt-peterburg": "СПб", novosibirsk: "Новосибирск",
+                        ekaterinburg: "Екатеринбург", kazan: "Казань", krasnodar: "Краснодар",
+                        tver: "Тверь", tula: "Тула", vladimir: "Владимир", kaluga: "Калуга",
+                        ryazan: "Рязань", yaroslavl: "Ярославль", smolensk: "Смоленск",
+                        bryansk: "Брянск", ivanovo: "Иваново", kostroma: "Кострома",
+                        tambov: "Тамбов", voronezh: "Воронеж", lipetsk: "Липецк",
+                        orel: "Орёл", kursk: "Курск", "rostov-na-donu": "Ростов-на-Дону"
+                    };
+
+                    var labels = regions.map(function(r) {
+                        var key = r.city || r.region || r.name || "";
+                        return CITY_NAMES[key] || key;
+                    });
+                    var medianPrices = regions.map(function(r) { return r.median_price || 0; });
+                    var candidateCounts = regions.map(function(r) {
+                        return Array.isArray(r.candidates) ? r.candidates.length : 0;
+                    });
+
+                    if (regionChartInstance) regionChartInstance.destroy();
+                    regionChartInstance = new Chart(document.getElementById("regionChart"), {
+                        type: "bar",
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: "Медианная цена",
+                                data: medianPrices,
+                                backgroundColor: "rgba(74, 158, 255, 0.7)",
+                                borderColor: "#4a9eff",
+                                borderWidth: 1,
+                                borderRadius: 4
+                            }, {
+                                label: "Кол-во объявлений",
+                                data: candidateCounts,
+                                backgroundColor: "rgba(74, 222, 128, 0.7)",
+                                borderColor: "#4ade80",
+                                borderWidth: 1,
+                                borderRadius: 4,
+                                yAxisID: "y1"
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: "bottom",
+                                    labels: { color: "#888", font: { size: 11 }, boxWidth: 12, padding: 12 }
+                                },
+                                tooltip: {
+                                    backgroundColor: "#1a1a1a",
+                                    borderColor: "#333",
+                                    borderWidth: 1,
+                                    titleColor: "#fff",
+                                    bodyColor: "#ccc"
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    grid: { color: "#2a2a2a" },
+                                    ticks: { color: "#888", font: { size: 11 } }
+                                },
+                                y: {
+                                    position: "left",
+                                    grid: { color: "#2a2a2a" },
+                                    ticks: {
+                                        color: "#888",
+                                        font: { size: 11 },
+                                        callback: function(v) { return (v / 1000).toFixed(0) + "k"; }
+                                    }
+                                },
+                                y1: {
+                                    position: "right",
+                                    grid: { display: false },
+                                    ticks: { color: "#4ade80", font: { size: 11 } }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(function() {
+                    hideChartSkeleton("regionSkeleton");
+                    if (regionChartInstance) { regionChartInstance.destroy(); regionChartInstance = null; }
+                    showChartEmpty("regionChart", "regionSkeleton");
+                });
+        }
+
+        function updateProfitHistogram(candidates) {
+            hideChartSkeleton("profitSkeleton");
+            clearChartEmpty("profitChart");
+
+            var rois = (candidates || []).map(function(c) { return c.roi_percent; }).filter(function(v) { return v != null; });
+
+            if (!rois.length) {
+                if (profitChartInstance) { profitChartInstance.destroy(); profitChartInstance = null; }
+                showChartEmpty("profitChart", "profitSkeleton");
+                return;
+            }
+
+            var bins = [
+                { label: "0-5%", min: 0, max: 5 },
+                { label: "5-10%", min: 5, max: 10 },
+                { label: "10-20%", min: 10, max: 20 },
+                { label: "20-30%", min: 20, max: 30 },
+                { label: "30-50%", min: 30, max: 50 },
+                { label: "50%+", min: 50, max: Infinity }
+            ];
+
+            var counts = bins.map(function(b) {
+                return rois.filter(function(r) { return r >= b.min && r < b.max; }).length;
+            });
+
+            var colors = bins.map(function(b) {
+                if (b.min >= 20) return "rgba(74, 222, 128, 0.7)";
+                if (b.min >= 10) return "rgba(250, 204, 21, 0.7)";
+                return "rgba(248, 113, 113, 0.7)";
+            });
+
+            if (profitChartInstance) profitChartInstance.destroy();
+            profitChartInstance = new Chart(document.getElementById("profitChart"), {
+                type: "bar",
+                data: {
+                    labels: bins.map(function(b) { return b.label; }),
+                    datasets: [{
+                        label: "Кол-во флипов",
+                        data: counts,
+                        backgroundColor: colors,
+                        borderRadius: 4,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: "#1a1a1a",
+                            borderColor: "#333",
+                            borderWidth: 1,
+                            titleColor: "#fff",
+                            bodyColor: "#ccc"
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: "#2a2a2a" },
+                            ticks: { color: "#888", font: { size: 11 } }
+                        },
+                        y: {
+                            grid: { color: "#2a2a2a" },
+                            ticks: {
+                                color: "#888",
+                                font: { size: 11 },
+                                stepSize: 1
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function loadAllCharts() {
+            loadTrends();
+            loadMultiRegion();
+        }
+
         // City filter
         document.getElementById("cityFilter").addEventListener("change", function(e) {
             currentCity = e.target.value;
             fetchData();
+            loadAllCharts();
         });
 
         // Mode toggle
@@ -738,6 +1241,16 @@
 
         // Initial load
         fetchData();
+        loadAllCharts();
+
+        // Query input with debounce
+        document.getElementById("queryInput").addEventListener("input", function(e) {
+            clearTimeout(queryDebounceTimer);
+            queryDebounceTimer = setTimeout(function() {
+                currentQuery = e.target.value.trim() || "iPhone";
+                loadAllCharts();
+            }, 500);
+        });
     </script>
 </body>
 </html>
