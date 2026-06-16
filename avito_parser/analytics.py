@@ -14,10 +14,13 @@ from typing import Dict, List, Optional, Set, Tuple
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 
+from avito_parser.config import AppConfig
 from avito_parser.models import (
     AnalyticsResult,
     AvitoItem,
+    FlipAlert,
     RedFlag,
+    RegionalFlipResult,
 )
 
 # Red flag keywords (Russian)
@@ -135,16 +138,25 @@ class AvitoAnalytics:
         profit_threshold_percentile: float = 25.0,
         profit_margin: float = 0.30,
         relevance_threshold: float = 0.5,
+        quick_flip_margin: float = 0.20,
+        deep_flip_margin: float = 0.40,
+        good_flip_conditions: Optional[list[str]] = None,
     ):
         """
         Args:
             profit_threshold_percentile: Percentile below which items are flagged
             profit_margin: Minimum discount vs median to flag as profitable (0.30 = 30%)
             relevance_threshold: Min fuzzy match ratio for query relevance (0.5 = 50%)
+            quick_flip_margin: Margin threshold for quick flips (0.20 = 20%)
+            deep_flip_margin: Margin threshold for deep flips (0.40 = 40%)
+            good_flip_conditions: List of acceptable item conditions for flipping
         """
         self._profit_threshold_percentile = profit_threshold_percentile
         self._profit_margin = profit_margin
         self._relevance_threshold = relevance_threshold
+        self._quick_flip_margin = quick_flip_margin
+        self._deep_flip_margin = deep_flip_margin
+        self._good_flip_conditions = good_flip_conditions or AppConfig().good_flip_conditions
 
     def analyze(
         self,
@@ -283,8 +295,6 @@ class AvitoAnalytics:
             scanned_at=datetime.now(timezone.utc),
         )
 
-    GOOD_FLIP_CONDITIONS = {"Новое", "Отличное", "Б/у"}
-
     def analyze_flips(
         self,
         items: List[AvitoItem],
@@ -337,7 +347,7 @@ class AvitoAnalytics:
         candidates: List[FlipCandidate] = []
         for item in relevant:
             cond = (item.condition or "").strip()
-            is_good_cond = any(gc.lower() in cond.lower() for gc in self.GOOD_FLIP_CONDITIONS) if cond else False
+            is_good_cond = any(gc.lower() in cond.lower() for gc in self._good_flip_conditions) if cond else False
 
             if not is_good_cond:
                 continue
@@ -381,6 +391,57 @@ class AvitoAnalytics:
             candidates=candidates,
             scanned_at=datetime.now(timezone.utc),
         )
+
+    def analyze_flips_multi_region(
+        self,
+        items_by_region: dict[str, list[AvitoItem]],
+        query: str,
+    ) -> list[RegionalFlipResult]:
+        """
+        Analyze flip potential across multiple regions.
+
+        Args:
+            items_by_region: Mapping of city name -> list of AvitoItem
+            query: Search query
+
+        Returns:
+            List of RegionalFlipResult, one per region
+        """
+        results: list[RegionalFlipResult] = []
+        for city, items in items_by_region.items():
+            flip_result = self.analyze_flips(items, query, city)
+            buy_advice = self._generate_buy_advice(flip_result.candidates)
+            sell_advice = self._generate_sell_advice(flip_result.median_price)
+            results.append(
+                RegionalFlipResult(
+                    city=city,
+                    candidates=flip_result.candidates,
+                    median_price=flip_result.median_price,
+                    mean_price=flip_result.mean_price,
+                    buy_advice=buy_advice,
+                    sell_advice=sell_advice,
+                )
+            )
+        return results
+
+    def _generate_buy_advice(self, candidates: list[FlipCandidate]) -> str:
+        """Generate buying advice based on candidate margins."""
+        if not candidates:
+            return "Нет подходящих лотов для перепродажи."
+        quick = [c for c in candidates if c.discount_percent >= self._quick_flip_margin * 100]
+        deep = [c for c in candidates if c.discount_percent >= self._deep_flip_margin * 100]
+        parts: list[str] = []
+        if deep:
+            parts.append(f"Глубокий флип: {len(deep)} лот(ов) с маржой {self._deep_flip_margin:.0%}+")
+        if quick:
+            parts.append(f"Быстрый флип: {len(quick)} лот(ов) с маржой {self._quick_flip_margin:.0%}+")
+        return "; ".join(parts) if parts else "Маржа ниже пороговых значений."
+
+    def _generate_sell_advice(self, median_price: int) -> str:
+        """Generate selling advice based on median price."""
+        if median_price <= 0:
+            return "Недостаточно данных для оценки цены перепродажи."
+        return f"Целевая цена перепродажи: ~{median_price:,} руб. (медиана рынка)"
 
     def _detect_red_flags(self, item: AvitoItem, median_price: int) -> List[RedFlag]:
         """
@@ -545,3 +606,6 @@ class AvitoAnalytics:
                     outliers.append(item)
 
         return outliers
+
+
+FlipAlert.model_rebuild()

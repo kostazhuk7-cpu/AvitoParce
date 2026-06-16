@@ -13,8 +13,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Optional
 
-from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi import Depends, FastAPI, Form, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 # Add parent to path for imports
@@ -308,8 +308,10 @@ async def flip_analytics_search(
     category: str = Form(""),
     pages: int = Form(3),
     headless: bool = Form(False),
+    mode: str = Form("all"),
 ):
-    """Run browser search + flip analysis, return results."""
+    """Run browser search + flip analysis, return results.
+    mode: 'quick' (≥20% discount), 'deep' (≥40%), or 'all' (no filter)."""
     error_message = None
     flip_result = None
 
@@ -324,8 +326,14 @@ async def flip_analytics_search(
             error_message = "Браузер не нашёл объявлений. Возможно, Avito показал капчу."
         else:
             flip_result = analyzer.analyze_flips(all_items, query=query, city=city)
+            if mode in ("quick", "deep"):
+                threshold = 40 if mode == "deep" else 20
+                flip_result.candidates[:] = [
+                    c for c in flip_result.candidates
+                    if c.discount_percent >= threshold
+                ]
             logger.info(
-                f"Flip analysis: {len(flip_result.candidates)} candidates from {len(all_items)} items"
+                f"Flip analysis: {len(flip_result.candidates)} candidates from {len(all_items)} items (mode={mode})"
             )
     except Exception as e:
         error_message = f"Ошибка: {type(e).__name__}: {e}"
@@ -455,6 +463,174 @@ async def api_parse_html(
             "profitable_count": len(result.profitable_items),
         },
     }
+
+
+# ── Dashboard JSON API ─────────────────────────────────────────────
+
+
+def _mode_filter(candidates: list, mode: str, quick_pct: float = 20, deep_pct: float = 40) -> list:
+    """Filter flip candidates by mode: quick ≥quick_pct%, deep ≥deep_pct%, all = no filter."""
+    if mode == "all":
+        return candidates
+    threshold = deep_pct if mode == "deep" else quick_pct
+    return [c for c in candidates if c.discount_percent >= threshold]
+
+
+@app.get("/api/trends")
+async def api_trends(
+    storage: Annotated[AvitoStorage, Depends(get_storage)],
+    query: str = Query(..., description="Search query"),
+    city: str = Query("moskva"),
+    days: int = Query(7, ge=1, le=30, description="Days of history (1-30)"),
+):
+    """Price trends for a query in a city over N days."""
+    try:
+        result = await storage.get_market_trends(query, city, days)
+        return result
+    except Exception as e:
+        logger.error(f"Trends error: {e}")
+        return {"labels": [], "prices": []}
+
+
+@app.get("/api/dashboard/flips")
+async def api_dashboard_flips(
+    request: Request,
+    storage: Annotated[AvitoStorage, Depends(get_storage)],
+    city: str = Query("moskva"),
+    mode: str = Query("all", pattern="^(quick|deep|all)$"),
+):
+    """Get flip candidates from stored items for a city."""
+    try:
+        items = await storage.get_items_by_city(city)
+        analyzer = get_analyzer(request)
+        result = analyzer.analyze_flips(items, query="", city=city)
+        candidates = _mode_filter(result.candidates, mode)
+        return {"candidates": [c.model_dump() for c in candidates]}
+    except Exception as e:
+        logger.error(f"Dashboard flips error: {e}")
+        return {"candidates": []}
+
+
+@app.get("/api/flips")
+async def api_flips(
+    request: Request,
+    query: str = Query(..., description="Search query"),
+    city: str = Query("moskva"),
+    mode: str = Query("all", pattern="^(quick|deep|all)$"),
+    pages: int = Query(3, ge=1, le=10),
+):
+    """JSON API for flip analysis using browser search."""
+    try:
+        all_items = await asyncio.to_thread(
+            _browser_search_thread,
+            query=query, city=CITY_SLUG_MAP.get(city, city),
+            category="", pages=pages,
+            headless=True, min_price=0, max_price=0,
+        )
+        if not all_items:
+            return {"candidates": [], "total_items": 0}
+
+        analyzer = get_analyzer(request)
+        result = analyzer.analyze_flips(all_items, query=query, city=city)
+        candidates = _mode_filter(result.candidates, mode)
+        return {
+            "candidates": [c.model_dump() for c in candidates],
+            "total_items": result.total_items,
+            "median_price": result.median_price,
+            "mean_price": result.mean_price,
+        }
+    except Exception as e:
+        logger.error(f"API flips error: {e}")
+        return {"candidates": [], "total_items": 0, "error": str(e)}
+
+
+@app.get("/api/flips/multi")
+async def api_flips_multi(
+    request: Request,
+    query: str = Query(..., description="Search query"),
+    cities: str = Query(..., description="Comma-separated city slugs"),
+    pages: int = Query(3, ge=1, le=10),
+):
+    """Multi-region flip analysis across cities."""
+    city_list = [c.strip() for c in cities.split(",") if c.strip()]
+    if not city_list:
+        return JSONResponse(
+            {"error": "cities required (comma-separated)"}, status_code=400
+        )
+
+    try:
+
+        async def _search_city(city_slug: str) -> tuple[str, list]:
+            items = await asyncio.to_thread(
+                _browser_search_thread,
+                query=query, city=CITY_SLUG_MAP.get(city_slug, city_slug),
+                category="", pages=pages,
+                headless=True, min_price=0, max_price=0,
+            )
+            return (city_slug, items)
+
+        tasks = [_search_city(c) for c in city_list]
+        city_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        items_by_region: dict[str, list] = {}
+        for result_item in city_results:
+            if not isinstance(result_item, tuple):
+                logger.error(f"Multi-flip city search error: {result_item}")
+                continue
+            city_name, items = result_item
+            items_by_region[city_name] = items
+
+        analyzer = get_analyzer(request)
+        multi_result = analyzer.analyze_flips_multi_region(items_by_region, query)
+        return [r.model_dump() for r in multi_result]
+    except Exception as e:
+        logger.error(f"API flips/multi error: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/discovery")
+async def api_discovery(
+    request: Request,
+    city: str = Query("moskva"),
+):
+    """Category discovery for flip opportunities."""
+    try:
+        from avito_parser.discovery import CategoryDiscovery
+    except ImportError:
+        return {"error": "Discovery module not available", "categories": []}
+
+    try:
+        config = get_config(request)
+        discovery = CategoryDiscovery(config)  # type: ignore[call-arg, misc]
+        result = discovery.scan_categories(city, max_categories=10)  # type: ignore[attr-defined]
+        return result.model_dump()
+    except Exception as e:
+        logger.error(f"Discovery error: {e}")
+        return {"error": str(e), "categories": []}
+
+
+@app.get("/api/stats")
+async def api_stats(
+    storage: Annotated[AvitoStorage, Depends(get_storage)],
+    city: str = Query("moskva"),
+):
+    """Storage statistics and recent price drops."""
+    try:
+        stats = await storage.get_stats(city)
+        drops = await storage.detect_price_drops(min_pct=0.15, days=7)
+        return {
+            "storage": stats,
+            "price_drops_count": len(drops),
+            "recent_drops": drops[:10],
+        }
+    except Exception as e:
+        logger.error(f"Stats error: {e}")
+        return {
+            "error": str(e),
+            "storage": {},
+            "price_drops_count": 0,
+            "recent_drops": [],
+        }
 
 
 def open_browser():

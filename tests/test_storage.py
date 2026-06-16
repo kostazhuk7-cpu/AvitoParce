@@ -166,6 +166,61 @@ class TestGetStats:
 
 
 @pytest.mark.asyncio
+class TestPriceAnalytics:
+    async def _insert_price_history(self, storage: AvitoStorage, records: list[tuple]):
+        for item_id, title, price, query, city, day_offset in records:
+            await storage._db.execute(
+                """
+                INSERT INTO price_history (item_id, title, price_rub, url, search_query, city, seller_name, condition, red_flags, scraped_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', ?))
+                """,
+                (item_id, title, price, f"https://avito.ru/item/{item_id}", query, city, "Test", "Б/у", "[]", f"{day_offset} days"),
+            )
+        await storage._db.commit()
+
+    async def test_get_price_trend(self, storage: AvitoStorage):
+        records = [
+            (1, "iPhone", 100000, "iphone", "moskva", -3),
+            (1, "iPhone", 95000, "iphone", "moskva", -3),
+            (1, "iPhone", 90000, "iphone", "moskva", -2),
+            (1, "iPhone", 85000, "iphone", "moskva", -1),
+        ]
+        await self._insert_price_history(storage, records)
+        trend = await storage.get_price_trend(1, days=7)
+        assert len(trend) == 3
+        assert trend[0]["avg_price"] == 97500
+        assert trend[1]["avg_price"] == 90000
+        assert trend[2]["avg_price"] == 85000
+
+    async def test_detect_price_drops(self, storage: AvitoStorage):
+        records = [
+            (1, "iPhone", 100000, "iphone", "moskva", -3),
+            (1, "iPhone", 80000, "iphone", "moskva", -1),
+            (2, "Samsung", 50000, "samsung", "moskva", -3),
+            (2, "Samsung", 48000, "samsung", "moskva", -1),
+        ]
+        await self._insert_price_history(storage, records)
+        drops = await storage.detect_price_drops(min_pct=0.15, days=7)
+        assert len(drops) == 1
+        assert drops[0]["item_id"] == 1
+        assert drops[0]["first_price"] == 100000
+        assert drops[0]["last_price"] == 80000
+        assert drops[0]["drop_pct"] == 0.2
+
+    async def test_get_market_trends(self, storage: AvitoStorage):
+        records = [
+            (1, "iPhone A", 100000, "iphone", "moskva", -2),
+            (2, "iPhone B", 110000, "iphone", "moskva", -2),
+            (1, "iPhone A", 90000, "iphone", "moskva", -1),
+            (2, "iPhone B", 95000, "iphone", "moskva", -1),
+        ]
+        await self._insert_price_history(storage, records)
+        trends = await storage.get_market_trends("iphone", "moskva", days=7)
+        assert len(trends["labels"]) == 2
+        assert trends["prices"] == [105000, 92500]
+
+
+@pytest.mark.asyncio
 class TestAtomicTransaction:
     """Verify save_items rolls back all changes on partial failure."""
 

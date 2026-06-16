@@ -348,12 +348,93 @@ class AvitoStorage:
             raise RuntimeError("Storage not initialized.")
         cursor = await self._db.execute("""
             SELECT item_id, title, price_rub, url, seller_name, condition, scraped_at
-            FROM price_history 
+            FROM price_history
             WHERE search_query = ? AND city = ?
             ORDER BY scraped_at DESC
         """, (search_query, city))
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+    async def get_price_trend(self, item_id: int, days: int = 7) -> list[dict]:
+        if not self._db:
+            raise RuntimeError("Storage not initialized.")
+        cursor = await self._db.execute(
+            """
+            SELECT date(scraped_at) as day, AVG(price_rub) as avg_price
+            FROM price_history
+            WHERE item_id = ? AND scraped_at >= date('now', ?)
+            GROUP BY day
+            ORDER BY day ASC
+            """,
+            (item_id, f"-{days} days"),
+        )
+        rows = await cursor.fetchall()
+        return [{"date": row["day"], "avg_price": int(row["avg_price"])} for row in rows]
+
+    async def detect_price_drops(self, min_pct: float = 0.15, days: int = 7) -> list[dict]:
+        if not self._db:
+            raise RuntimeError("Storage not initialized.")
+        cursor = await self._db.execute(
+            """
+            SELECT item_id, title, url, price_rub, scraped_at
+            FROM price_history
+            WHERE scraped_at >= date('now', ?)
+            ORDER BY item_id, scraped_at ASC
+            """,
+            (f"-{days} days",),
+        )
+        rows = await cursor.fetchall()
+
+        from collections import defaultdict
+
+        items = defaultdict(list)
+        for row in rows:
+            items[row["item_id"]].append({
+                "price": row["price_rub"],
+                "date": row["scraped_at"],
+                "title": row["title"],
+                "url": row["url"],
+            })
+
+        drops = []
+        for item_id, history in items.items():
+            if len(history) < 2:
+                continue
+            first = history[0]
+            last = history[-1]
+            if first["price"] <= 0:
+                continue
+            drop_pct = (first["price"] - last["price"]) / first["price"]
+            if drop_pct >= min_pct:
+                drops.append({
+                    "item_id": item_id,
+                    "title": first["title"],
+                    "url": first["url"],
+                    "first_price": first["price"],
+                    "last_price": last["price"],
+                    "drop_pct": round(drop_pct, 4),
+                    "first_date": first["date"],
+                    "last_date": last["date"],
+                })
+        return drops
+
+    async def get_market_trends(self, query: str, city: str, days: int = 7) -> dict:
+        if not self._db:
+            raise RuntimeError("Storage not initialized.")
+        cursor = await self._db.execute(
+            """
+            SELECT date(scraped_at) as day, AVG(price_rub) as avg_price
+            FROM price_history
+            WHERE search_query = ? AND city = ? AND scraped_at >= date('now', ?)
+            GROUP BY day
+            ORDER BY day ASC
+            """,
+            (query, city, f"-{days} days"),
+        )
+        rows = await cursor.fetchall()
+        labels = [row["day"] for row in rows]
+        prices = [int(row["avg_price"]) for row in rows]
+        return {"labels": labels, "prices": prices}
 
     def _row_to_item(self, row: aiosqlite.Row) -> AvitoItem:
         """Convert database row to AvitoItem."""

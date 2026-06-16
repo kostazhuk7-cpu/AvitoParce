@@ -255,3 +255,16 @@ class DiscoveryResult(BaseModel):
 
     categories: list[CategoryCandidate] = Field(default_factory=list, description="Discovered category candidates")
     scanned_at: datetime = Field(default_factory=datetime.now, description="Scan timestamp")
+
+
+class RegionalFlipResult(BaseModel):
+    """Multi-region flip analysis result for a single city."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    city: str = Field(..., description="City name")
+    candidates: List[Any] = Field(default_factory=list, description="FlipCandidate objects")
+    median_price: int = Field(..., ge=0, description="Median price in region")
+    mean_price: int = Field(..., ge=0, description="Mean price in region")
+    buy_advice: str = Field(..., description="Buying advice for this region")
+    sell_advice: str = Field(..., description="Selling advice for this region")

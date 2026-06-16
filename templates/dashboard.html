@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Avito Parser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 0;
+            border-bottom: 1px solid #2a2a2a;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: #fff;
+        }
+
+        .header a {
+            color: #4a9eff;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .header a:hover {
+            color: #3a8eef;
+        }
+
+        /* Filter Bar */
+        .filter-bar {
+            display: flex;
+            gap: 12px;
+            align-items: end;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .filter-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-field label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-field select {
+            padding: 10px 14px;
+            background: #0f0f0f;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            min-width: 180px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .filter-field select:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .mode-toggle {
+            display: flex;
+            gap: 0;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .mode-btn {
+            padding: 10px 16px;
+            background: #0f0f0f;
+            border: none;
+            color: #888;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+
+        .mode-btn:not(:last-child) {
+            border-right: 1px solid #333;
+        }
+
+        .mode-btn:hover {
+            color: #fff;
+            background: #1a1a1a;
+        }
+
+        .mode-btn.active {
+            background: #4a9eff;
+            color: #fff;
+        }
+
+        .filter-stats {
+            margin-left: auto;
+            font-size: 13px;
+            color: #888;
+            align-self: center;
+        }
+
+        .filter-stats strong {
+            color: #fff;
+        }
+
+        /* Card Grid */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        /* Flip Card */
+        .flip-card {
+            perspective: 800px;
+            height: 220px;
+        }
+
+        .flip-card__inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+
+        .flip-card:hover .flip-card__inner {
+            transform: rotateY(180deg);
+        }
+
+        .flip-card__front,
+        .flip-card__back {
+            position: absolute;
+            inset: 0;
+            backface-visibility: hidden;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .flip-card__front {
+            background: #1a1a1a;
+        }
+
+        .flip-card__back {
+            background: #1e1e1e;
+            transform: rotateY(180deg);
+        }
+
+        .flip-card__title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+            line-height: 1.4;
+            margin-bottom: 12px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .flip-card__price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 8px;
+        }
+
+        .flip-card__price {
+            font-size: 20px;
+            font-weight: 700;
+            color: #f87171;
+        }
+
+        .flip-card__resale {
+            font-size: 14px;
+            color: #4ade80;
+            font-weight: 600;
+        }
+
+        .flip-card__roi {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            width: fit-content;
+            margin-top: auto;
+        }
+
+        .flip-card__roi--high {
+            background: rgba(74, 222, 128, 0.15);
+            color: #4ade80;
+        }
+
+        .flip-card__roi--medium {
+            background: rgba(250, 204, 21, 0.15);
+            color: #facc15;
+        }
+
+        .flip-card__roi--low {
+            background: rgba(248, 113, 113, 0.15);
+            color: #f87171;
+        }
+
+        .flip-card__condition {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 8px;
+        }
+
+        /* Back side */
+        .flip-card__back-title {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .flip-card__detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #2a2a2a;
+            font-size: 13px;
+        }
+
+        .flip-card__detail-row:last-of-type {
+            border-bottom: none;
+        }
+
+        .flip-card__detail-label {
+            color: #888;
+        }
+
+        .flip-card__detail-value {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .flip-card__flags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 12px;
+        }
+
+        .flip-card__flag {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 8px;
+            background: rgba(248, 113, 113, 0.12);
+            color: #f87171;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .flip-card__link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: auto;
+            padding: 8px 16px;
+            background: #4a9eff;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .flip-card__link:hover {
+            background: #3a8eef;
+        }
+
+        /* Loading Skeleton */
+        .loading-skeleton {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .skeleton-card {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+            height: 220px;
+        }
+
+        .skeleton-line {
+            height: 14px;
+            background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+            margin-bottom: 12px;
+        }
+
+        .skeleton-line--title {
+            width: 85%;
+        }
+
+        .skeleton-line--short {
+            width: 50%;
+        }
+
+        .skeleton-line--price {
+            width: 40%;
+            height: 24px;
+            margin-top: 16px;
+        }
+
+        .skeleton-line--badge {
+            width: 60px;
+            height: 28px;
+            margin-top: auto;
+            border-radius: 6px;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #555;
+        }
+
+        .empty-state__icon {
+            font-size: 56px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state__title {
+            font-size: 18px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .empty-state__text {
+            font-size: 14px;
+            color: #555;
+        }
+
+        /* Error State */
+        .error-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .error-state__icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .error-state__title {
+            font-size: 16px;
+            color: #f87171;
+            margin-bottom: 8px;
+        }
+
+        .error-state__text {
+            font-size: 14px;
+            color: #888;
+        }
+
+        .error-state__retry {
+            margin-top: 16px;
+            padding: 10px 24px;
+            background: #4a9eff;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+
+        .error-state__retry:hover {
+            background: #3a8eef;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .card-grid,
+            .loading-skeleton {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .card-grid,
+            .loading-skeleton {
+                grid-template-columns: 1fr;
+            }
+
+            .filter-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-field select {
+                min-width: unset;
+                width: 100%;
+            }
+
+            .mode-toggle {
+                width: 100%;
+            }
+
+            .mode-btn {
+                flex: 1;
+                text-align: center;
+            }
+
+            .filter-stats {
+                margin-left: 0;
+                text-align: center;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 8px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Flip Dashboard</h1>
+            <a href="/">&#8592; На главную</a>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-bar">
+            <div class="filter-field">
+                <label>Город</label>
+                <select id="cityFilter">
+                    <option value="">Все города</option>
+                    <option value="moskva">Москва</option>
+                    <option value="moskva_i_mo">Москва и МО</option>
+                    <option value="sankt-peterburg">Санкт-Петербург</option>
+                    <option value="novosibirsk">Новосибирск</option>
+                    <option value="ekaterinburg">Екатеринбург</option>
+                    <option value="kazan">Казань</option>
+                    <option value="krasnodar">Краснодар</option>
+                    <option value="rostov-na-donu">Ростов-на-Дону</option>
+                    <option value="tver">Тверь</option>
+                    <option value="tula">Тула</option>
+                    <option value="vladimir">Владимир</option>
+                    <option value="kaluga">Калуга</option>
+                    <option value="ryazan">Рязань</option>
+                    <option value="yaroslavl">Ярославль</option>
+                    <option value="smolensk">Смоленск</option>
+                    <option value="bryansk">Брянск</option>
+                    <option value="ivanovo">Иваново</option>
+                    <option value="kostroma">Кострома</option>
+                    <option value="tambov">Тамбов</option>
+                    <option value="voronezh">Воронеж</option>
+                    <option value="lipetsk">Липецк</option>
+                    <option value="orel">Орёл</option>
+                    <option value="kursk">Курск</option>
+                    <option value="rossiya">Вся Россия</option>
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label>Тип</label>
+                <div class="mode-toggle" id="modeToggle">
+                    <button class="mode-btn active" data-mode="all">Все</button>
+                    <button class="mode-btn" data-mode="quick">&#9889; Quick</button>
+                    <button class="mode-btn" data-mode="deep">&#128176; Deep</button>
+                </div>
+            </div>
+
+            <div class="filter-stats" id="filterStats"></div>
+        </div>
+
+        <!-- Content Area -->
+        <div id="content">
+            <!-- Loading skeleton (shown initially) -->
+            <div class="loading-skeleton" id="skeleton">
+                <div class="skeleton-card">
+                    <div class="skeleton-line skeleton-line--title"></div>
+                    <div class="skeleton-line skeleton-line--short"></div>
+                    <div class="skeleton-line skeleton-line--price"></div>
+                    <div class="skeleton-line skeleton-line--badge"></div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-line skeleton-line--title"></div>
+                    <div class="skeleton-line skeleton-line--short"></div>
+                    <div class="skeleton-line skeleton-line--price"></div>
+                    <div class="skeleton-line skeleton-line--badge"></div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-line skeleton-line--title"></div>
+                    <div class="skeleton-line skeleton-line--short"></div>
+                    <div class="skeleton-line skeleton-line--price"></div>
+                    <div class="skeleton-line skeleton-line--badge"></div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-line skeleton-line--title"></div>
+                    <div class="skeleton-line skeleton-line--short"></div>
+                    <div class="skeleton-line skeleton-line--price"></div>
+                    <div class="skeleton-line skeleton-line--badge"></div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-line skeleton-line--title"></div>
+                    <div class="skeleton-line skeleton-line--short"></div>
+                    <div class="skeleton-line skeleton-line--price"></div>
+                    <div class="skeleton-line skeleton-line--badge"></div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-line skeleton-line--title"></div>
+                    <div class="skeleton-line skeleton-line--short"></div>
+                    <div class="skeleton-line skeleton-line--price"></div>
+                    <div class="skeleton-line skeleton-line--badge"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const FLAG_NAMES = {
+            new_account: "Новый аккаунт",
+            low_rating: "Низкий рейтинг",
+            no_photos: "Без фото",
+            bulk_seller: "Оптовик",
+            suspicious_price: "Подозрительная цена",
+            keyword_urgent: "Срочная продажа",
+            keyword_damaged: "Повреждён",
+            keyword_no_docs: "Без документов",
+            keyword_parts: "На запчасти"
+        };
+
+        let currentCity = "";
+        let currentMode = "all";
+        let abortController = null;
+
+        function formatPrice(n) {
+            if (n == null) return "—";
+            return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " \u20BD";
+        }
+
+        function truncate(str, max) {
+            if (!str) return "";
+            return str.length > max ? str.slice(0, max) + "..." : str;
+        }
+
+        function roiClass(roi) {
+            if (roi >= 20) return "flip-card__roi--high";
+            if (roi >= 10) return "flip-card__roi--medium";
+            return "flip-card__roi--low";
+        }
+
+        function renderFlags(flags) {
+            if (!flags || !flags.length) return "";
+            return flags.map(function(f) {
+                var name = FLAG_NAMES[f] || f;
+                return '<span class="flip-card__flag">\u26A0 ' + name + "</span>";
+            }).join("");
+        }
+
+        function renderCard(c) {
+            var roi = c.roi_percent != null ? c.roi_percent : 0;
+            var flagsHtml = renderFlags(c.red_flags);
+            var condition = c.condition || "";
+
+            return '<div class="flip-card">' +
+                '<div class="flip-card__inner">' +
+                    '<div class="flip-card__front">' +
+                        (condition ? '<div class="flip-card__condition">' + condition + "</div>" : "") +
+                        '<div class="flip-card__title">' + truncate(c.title, 60) + "</div>" +
+                        '<div class="flip-card__price-row">' +
+                            '<span class="flip-card__price">' + formatPrice(c.buy_price) + "</span>" +
+                            '<span class="flip-card__resale">' + formatPrice(c.estimated_resale) + "</span>" +
+                        "</div>" +
+                        '<div class="flip-card__roi ' + roiClass(roi) + '">ROI ' + roi + "%</div>" +
+                    "</div>" +
+                    '<div class="flip-card__back">' +
+                        '<div class="flip-card__back-title">Детали сделки</div>' +
+                        '<div class="flip-card__detail-row">' +
+                            '<span class="flip-card__detail-label">Выкуп</span>' +
+                            '<span class="flip-card__detail-value" style="color:#f87171">' + formatPrice(c.buy_price) + "</span>" +
+                        "</div>" +
+                        '<div class="flip-card__detail-row">' +
+                            '<span class="flip-card__detail-label">Продажа</span>' +
+                            '<span class="flip-card__detail-value" style="color:#4ade80">' + formatPrice(c.estimated_resale) + "</span>" +
+                        "</div>" +
+                        (flagsHtml ? '<div class="flip-card__flags">' + flagsHtml + "</div>" : "") +
+                        (c.url ? '<a href="' + c.url + '" target="_blank" rel="noopener" class="flip-card__link">Открыть на Авито</a>' : "") +
+                    "</div>" +
+                "</div>" +
+            "</div>";
+        }
+
+        function renderGrid(candidates) {
+            if (!candidates || !candidates.length) {
+                return '<div class="empty-state">' +
+                    '<div class="empty-state__icon">\uD83D\uDD0D</div>' +
+                    '<div class="empty-state__title">Нет candidates matching filters</div>' +
+                    '<div class="empty-state__text">Попробуйте другой город или режим фильтрации</div>' +
+                "</div>";
+            }
+            return '<div class="card-grid">' +
+                candidates.map(renderCard).join("") +
+            "</div>";
+        }
+
+        function renderError(msg) {
+            return '<div class="error-state">' +
+                '<div class="error-state__icon">\u26A0\uFE0F</div>' +
+                '<div class="error-state__title">Ошибка загрузки</div>' +
+                '<div class="error-state__text">' + (msg || "Не удалось загрузить данные") + "</div>" +
+                '<button class="error-state__retry" onclick="fetchData()">Повторить</button>' +
+            "</div>";
+        }
+
+        function showSkeleton() {
+            document.getElementById("content").innerHTML =
+                '<div class="loading-skeleton" id="skeleton">' +
+                    Array(6).fill(
+                        '<div class="skeleton-card">' +
+                            '<div class="skeleton-line skeleton-line--title"></div>' +
+                            '<div class="skeleton-line skeleton-line--short"></div>' +
+                            '<div class="skeleton-line skeleton-line--price"></div>' +
+                            '<div class="skeleton-line skeleton-line--badge"></div>' +
+                        "</div>"
+                    ).join("") +
+                "</div>";
+        }
+
+        function updateStats(count) {
+            var el = document.getElementById("filterStats");
+            if (count != null) {
+                el.innerHTML = "Найдено: <strong>" + count + "</strong>";
+            } else {
+                el.textContent = "";
+            }
+        }
+
+        function fetchData() {
+            if (abortController) abortController.abort();
+            abortController = new AbortController();
+
+            showSkeleton();
+
+            var params = new URLSearchParams();
+            if (currentCity) params.set("city", currentCity);
+            params.set("mode", currentMode);
+
+            fetch("/api/dashboard/flips?" + params.toString(), {
+                signal: abortController.signal
+            })
+            .then(function(r) {
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                return r.json();
+            })
+            .then(function(data) {
+                var candidates = data.candidates || [];
+                updateStats(candidates.length);
+                document.getElementById("content").innerHTML = renderGrid(candidates);
+            })
+            .catch(function(err) {
+                if (err.name === "AbortError") return;
+                updateStats(null);
+                document.getElementById("content").innerHTML = renderError(err.message);
+            });
+        }
+
+        // City filter
+        document.getElementById("cityFilter").addEventListener("change", function(e) {
+            currentCity = e.target.value;
+            fetchData();
+        });
+
+        // Mode toggle
+        document.getElementById("modeToggle").addEventListener("click", function(e) {
+            var btn = e.target.closest(".mode-btn");
+            if (!btn) return;
+            this.querySelectorAll(".mode-btn").forEach(function(b) { b.classList.remove("active"); });
+            btn.classList.add("active");
+            currentMode = btn.dataset.mode;
+            fetchData();
+        });
+
+        // Initial load
+        fetchData();
+    </script>
+</body>
+</html>

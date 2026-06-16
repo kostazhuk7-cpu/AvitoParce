@@ -139,6 +139,9 @@ class AppConfig:
     telegram_chat_id: Optional[str] = None
     quick_flip_margin: float = 0.20
     deep_flip_margin: float = 0.40
+    good_flip_conditions: List[str] = field(
+        default_factory=lambda: ["Новое", "Отличное", "Б/у"]
+    )
 
     @classmethod
     def from_env(cls, env_path: Optional[str] = None) -> "AppConfig":
@@ -200,6 +203,11 @@ class AppConfig:
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID"),
             quick_flip_margin=float(os.getenv("QUICK_FLIP_MARGIN", "0.20")),
             deep_flip_margin=float(os.getenv("DEEP_FLIP_MARGIN", "0.40")),
+            good_flip_conditions=[
+                c.strip()
+                for c in os.getenv("GOOD_FLIP_CONDITIONS", "Новое,Отличное,Б/у").split(",")
+                if c.strip()
+            ],
             search=SearchConfig(
                 city=os.getenv("DEFAULT_CITY", "moskva"),
                 radius=int(os.getenv("DEFAULT_RADIUS", "200")),
