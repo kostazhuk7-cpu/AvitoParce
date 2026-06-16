@@ -165,13 +165,20 @@ class AvitoStorage:
 
     async def save_items(self, items: List[AvitoItem]) -> int:
         """
-        Save or update items in database.
+        Save or update items in database atomically.
+
+        All items are saved in a single transaction. If ANY item fails,
+        the entire batch is rolled back and the exception is re-raised.
 
         Args:
             items: List of AvitoItem objects
 
         Returns:
             Number of items saved
+
+        Raises:
+            RuntimeError: If storage not initialized
+            Exception: On database error (transaction is rolled back)
         """
         if not self._db:
             raise RuntimeError("Storage not initialized. Call initialize() first.")
@@ -179,9 +186,10 @@ class AvitoStorage:
         now = datetime.now(timezone.utc).isoformat()
         saved_count = 0
 
-        for item in items:
-            try:
-                # Serialize complex fields
+        await self._db.execute("BEGIN TRANSACTION")
+
+        try:
+            for item in items:
                 images_json = json.dumps(item.images)
                 red_flags_json = json.dumps([f.value for f in item.red_flags])
 
@@ -221,13 +229,14 @@ class AvitoStorage:
                 )
                 saved_count += 1
 
-            except Exception as e:
-                logger.error(f"Failed to save item {item.item_id}: {e}")
-                continue
+            await self._db.commit()
+            logger.info(f"Saved {saved_count} items to database")
+            return saved_count
 
-        await self._db.commit()
-        logger.info(f"Saved {saved_count} items to database")
-        return saved_count
+        except Exception as e:
+            await self._db.execute("ROLLBACK")
+            logger.error(f"Failed to save items batch, rolling back: {e}")
+            raise
 
     async def get_items_by_city(self, city: str) -> List[AvitoItem]:
         """Get all items for a city."""
@@ -285,12 +294,16 @@ class AvitoStorage:
         await self._db.commit()
 
     async def save_price_snapshots(self, items: List[AvitoItem], search_query: str, city: str) -> int:
+        """Save price snapshots atomically."""
         if not self._db:
             raise RuntimeError("Storage not initialized. Call initialize() first.")
         now = datetime.now(timezone.utc).isoformat()
         count = 0
-        for item in items:
-            try:
+
+        await self._db.execute("BEGIN TRANSACTION")
+
+        try:
+            for item in items:
                 red_flags_json = json.dumps([f.value for f in item.red_flags])
                 await self._db.execute(SAVE_SNAPSHOT_SQL, (
                     item.item_id, item.title, item.price_rub, item.url,
@@ -298,10 +311,14 @@ class AvitoStorage:
                     red_flags_json, now,
                 ))
                 count += 1
-            except Exception as e:
-                logger.error(f"Snapshot save error: {e}")
-        await self._db.commit()
-        return count
+
+            await self._db.commit()
+            return count
+
+        except Exception as e:
+            await self._db.execute("ROLLBACK")
+            logger.error(f"Failed to save price snapshots batch, rolling back: {e}")
+            raise
 
     async def get_price_history(self, item_id: int) -> list[dict]:
         if not self._db:
