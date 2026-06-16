@@ -1,4 +1,5 @@
 __pycache__/
+.pytest_cache/
 *.pyc
 *.pyo
 .browser_profile/
@@ -9,15 +10,7 @@ captcha_debug.png
 test_response.html
 test_web_response_raw.html
 test_results.html
-# *.bat — track start.bat, ignore others
-run_filtered.bat
-run_preset.bat
-run_save_db.bat
-run_search.bat
-run_web.bat
-
 # Temp test files
 test_*.py
 debug_*.py
 analyze_*.py
-avito_gui.py

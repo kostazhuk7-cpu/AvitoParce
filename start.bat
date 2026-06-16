@@ -34,7 +34,7 @@ if %errorlevel% neq 0 (
 :: Запуск
 echo [3/3] Запуск сервера...
 echo.
-start "Avito Parser" python web_app.py
+start "Avito Parser" python avito_parser\web_app.py
 timeout /t 4 /nobreak >nul
 start http://localhost:8765
 echo.
