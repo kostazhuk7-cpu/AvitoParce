@@ -7,9 +7,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+if TYPE_CHECKING:
+    from avito_parser.analytics import FlipCandidate
 
 
 class SortOption(str, Enum):
@@ -211,3 +214,44 @@ class SellerProfile(BaseModel):
     response_time: Optional[str] = Field(default=None, description="Response time")
     profile_url: str = Field(..., description="Profile URL")
     scraped_at: datetime = Field(default_factory=datetime.now, description="Scrape timestamp")
+
+
+class CategoryCandidate(BaseModel):
+    """Category with flip potential metrics for discovery scanning."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., description="Category display name")
+    slug: str = Field(..., description="Category URL slug")
+    price_volatility: float = Field(..., ge=0, description="Price volatility score")
+    margin_potential: float = Field(..., ge=0, description="Estimated margin potential")
+    item_count: int = Field(..., ge=0, description="Number of items in category")
+
+
+class FlipAlert(BaseModel):
+    """Alert about a flip opportunity — quick or deep flip."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    flip_candidate: "FlipCandidate" = Field(..., description="The flip candidate item")
+    alert_type: Literal["quick", "deep"] = Field(..., description="Flip type: quick (≤20% margin) or deep (>20% margin)")
+    city: str = Field(..., description="City where the item was found")
+
+
+class CityConfig(BaseModel):
+    """City configuration for multi-city scanning."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    slug: str = Field(..., description="City URL slug (e.g. 'moskva')")
+    name: str = Field(..., description="City display name")
+    is_primary: bool = Field(default=False, description="Primary city for default searches")
+
+
+class DiscoveryResult(BaseModel):
+    """Result of category discovery scan — candidate categories found."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    categories: list[CategoryCandidate] = Field(default_factory=list, description="Discovered category candidates")
+    scanned_at: datetime = Field(default_factory=datetime.now, description="Scan timestamp")

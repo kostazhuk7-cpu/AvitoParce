@@ -130,6 +130,16 @@ class AppConfig:
     storage: StorageConfig = field(default_factory=StorageConfig)
     log: LogConfig = field(default_factory=LogConfig)
 
+    # Financial & platform config
+    profit_margin: float = 0.30
+    commission_rate: float = 0.10
+    resale_factor: float = 0.90
+    avito_api_key: str = ""
+    telegram_bot_token: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
+    quick_flip_margin: float = 0.20
+    deep_flip_margin: float = 0.40
+
     @classmethod
     def from_env(cls, env_path: Optional[str] = None) -> "AppConfig":
         """
@@ -182,6 +192,14 @@ class AppConfig:
         return cls(
             proxies=proxies,
             mobile_proxy=mobile_proxy,
+            profit_margin=float(os.getenv("PROFIT_MARGIN", "0.30")),
+            commission_rate=float(os.getenv("COMMISSION_RATE", "0.10")),
+            resale_factor=float(os.getenv("RESALE_FACTOR", "0.90")),
+            avito_api_key=os.getenv("AVITO_API_KEY", ""),
+            telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN"),
+            telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID"),
+            quick_flip_margin=float(os.getenv("QUICK_FLIP_MARGIN", "0.20")),
+            deep_flip_margin=float(os.getenv("DEEP_FLIP_MARGIN", "0.40")),
             search=SearchConfig(
                 city=os.getenv("DEFAULT_CITY", "moskva"),
                 radius=int(os.getenv("DEFAULT_RADIUS", "200")),

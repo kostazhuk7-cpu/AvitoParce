@@ -59,7 +59,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 config = AppConfig.from_env()
 parser = AvitoParser(config)
 browser_parser: Optional[BrowserParser] = None
-analyzer = AvitoAnalytics(profit_margin=0.30)
+analyzer = AvitoAnalytics(profit_margin=config.profit_margin)
 storage: Optional[AvitoStorage] = None
 search_results: Optional[AnalyticsResult] = None
 is_searching = False

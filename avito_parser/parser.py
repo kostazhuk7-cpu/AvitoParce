@@ -27,9 +27,6 @@ from avito_parser.models import (
     SortOption,
 )
 
-# Avito mobile API key (static, same for all users)
-AVITO_API_KEY = "af0deccbgcgidddjgnvljitntccdduijhdinfgjgfjir"
-
 # Avito API endpoints
 API_BASE = "https://m.avito.ru/api"
 API_SEARCH = f"{API_BASE}/11/items"
@@ -528,7 +525,7 @@ class AvitoParser:
     async def get_item_details(self, item_id: int) -> Optional[Dict[str, Any]]:
         """Fetch detailed item information from API."""
         url = f"{API_ITEM_DETAIL}/{item_id}"
-        params = {"key": AVITO_API_KEY}
+        params = {"key": self._config.avito_api_key}
 
         try:
             response = await self._client.get(url, params=params)
