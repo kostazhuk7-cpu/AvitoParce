@@ -386,14 +386,19 @@ class BrowserParser:
             description = data.get("description") or ""
 
             import re
-            # Try to extract condition
+            # Extract condition + all params for keyword matching
             condition = None
+            params_text_parts: list[str] = []
             params = data.get("params")
             if isinstance(params, list):
                 for p in params:
-                    if isinstance(p, dict) and p.get("name") == "Состояние":
-                        condition = p.get("value")
-                        break
+                    if isinstance(p, dict):
+                        name = p.get("name") or ""
+                        value = p.get("value") or ""
+                        if name and value:
+                            params_text_parts.append(f"{name}: {value}")
+                            if name == "Состояние":
+                                condition = value
             if not condition and description:
                 m = re.search(r"[Сс]остояние[:\s]+([А-Яа-я\s,]+?)\.", description)
                 if m:
@@ -402,6 +407,10 @@ class BrowserParser:
                 m = re.search(r"(?:Состояние|состояние)[:\s]+([А-Яа-я\s\-]+?)(?:\.|,|$|\\n)", description)
                 if m:
                     condition = m.group(1).strip()
+            # Append all params as searchable text for keyword detection
+            if params_text_parts:
+                params_str = ". ".join(params_text_parts)
+                description = f"{description}\nХарактеристики: {params_str}".strip()
 
             item = AvitoItem(
                 item_id=int(item_id),
@@ -429,7 +438,7 @@ class BrowserParser:
         """Fallback: parse items from DOM using Playwright JS evaluation."""
         items_data = page.evaluate("""() => {
             function extractCondition(text) {
-                const m = text.match(/(?:Состояние|состояние)[:\\s]+([А-Яа-я\\s\\-]+?)(?:\\.|,|$|\\n)/);
+                const m = text.match(/Состояние[:\s]+([А-Яа-я\s\-]{2,20})(?:\.|,|\d|\s|$)/i);
                 return m ? m[1].trim() : '';
             }
             const items = [];
@@ -457,7 +466,7 @@ class BrowserParser:
                         price: price,
                         url: link ? (link.getAttribute('href') || '') : '',
                         dateText: dateEl ? dateEl.textContent.trim() : '',
-                        text: allText.substring(0, 100),
+                        text: allText,
                         img: img ? img.getAttribute('src') || '' : '',
                         condition: extractCondition(card.textContent),
                     });
@@ -485,12 +494,13 @@ class BrowserParser:
                     item_id=d["id"],
                     title=d["title"],
                     price_rub=d["price"],
+                    description=d.get("text", ""),
                     url=url_path or f"https://www.avito.ru/item/{d['id']}",
                     publish_date=publish_date,
                     seller_name=d.get("text", "Unknown")[:30],
                     city=default_city,
                     images=[d["img"]] if d.get("img") else [],
-                    condition=d.get("condition", ""),
+                    condition=d.get("condition", "") or None,
                 )
                 items.append(item)
             except Exception as e:

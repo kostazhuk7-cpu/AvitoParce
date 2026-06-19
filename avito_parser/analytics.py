@@ -30,7 +30,15 @@ RED_FLAG_KEYWORDS_URGENT = [
 ]
 RED_FLAG_KEYWORDS_DAMAGED = [
     "битый", "после аварии", "не работает", "на запчасти",
-    "ремонт", "восстановление", "дефект", "трещина",
+    "ремонт", "восстановление", "дефект",
+    "трещина", "трещины", "скол", "сколы",
+    "изгиб", "царапин", "царапины", "упал", "разбит",
+    "гнутый", "погнут", "как есть",
+]
+# Conditions that count as damaged
+DAMAGED_CONDITIONS = [
+    "удовлетворительное", "плохое", "неудовлетворительное",
+    "на запчасти",
 ]
 RED_FLAG_KEYWORDS_NO_DOCS = [
     "без документов", "без ПТС", "без СТС", "без договора",
@@ -477,6 +485,12 @@ class AvitoAnalytics:
             if keyword in combined_text:
                 flags.append(RedFlag.KEYWORD_DAMAGED)
                 break
+
+        # Check condition field for damaged state
+        if not any(f == RedFlag.KEYWORD_DAMAGED for f in flags):
+            cond_lower = (item.condition or "").lower()
+            if cond_lower and any(dc in cond_lower for dc in DAMAGED_CONDITIONS):
+                flags.append(RedFlag.KEYWORD_DAMAGED)
 
         # Check for no documents keywords
         for keyword in RED_FLAG_KEYWORDS_NO_DOCS:
